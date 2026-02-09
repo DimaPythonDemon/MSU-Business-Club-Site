@@ -814,6 +814,7 @@ textarea:focus {
   color: #98abd0;
   font-size: 0.85rem;
   border-top: 1px solid rgba(109, 156, 238, 0.2);
+  text-align: center;
 }
 
 .neon-panel {
