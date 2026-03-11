@@ -185,7 +185,7 @@
     const note = document.createElement("p");
     note.className = "section-lead";
     note.textContent =
-      "можно просто обновлять данные в JSON без переписывания верстки";
+      "Структура блока готова под материалы, спикеров, галерею и статистику конкретного форума.";
 
     head.appendChild(eyebrow);
     head.appendChild(title);
@@ -362,7 +362,7 @@
     metaNode.textContent =
       (isDemo ? "⚠️ Данные демонстрационные. " : "") +
       (year ? "Текущий акцент: " + year + " год. " : "") +
-      "Источник данных: assets/data/forum-stats.json";
+      "Статистика обновляется централизованно и не требует ручной правки блоков страницы.";
   }
 
   async function load() {

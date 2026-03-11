@@ -4,7 +4,7 @@
   const root = document.getElementById("closed-club-page");
   if (!root) return;
 
-  const tabs = Array.from(document.querySelectorAll(".format-tab"));
+  const tabs = Array.from(document.querySelectorAll(".format-tab[data-format]"));
   const stage = document.getElementById("format-stage");
   const img = document.getElementById("format-image");
   const title = document.getElementById("format-title");
@@ -34,7 +34,7 @@
         "Закрытая беседа с предпринимателем без публичности и лишнего шума. Формат — вопросы по делу, честные детали и «как было на самом деле».",
       tags: ["Опыт", "Вопросы", "Без записи"],
       img: {
-        src: "assets/img/event-04-discussion.jpg",
+        src: "assets/img/event-04-ryasova.jpg",
         alt: "Закрытая беседа с гостем"
       }
     },
@@ -54,7 +54,7 @@
         "Точечные интро и консультации: когда нужен один сильный контакт, один совет или один быстрый созвон, чтобы сдвинуться с места.",
       tags: ["Интро", "Консультации", "Скорость"],
       img: {
-        src: "assets/img/event-03-forum.jpg",
+        src: "assets/img/event-03-alyasov.jpg",
         alt: "Личное общение"
       }
     }
@@ -90,10 +90,8 @@
     });
   }
 
-  let currentIdx = Math.max(
-    0,
-    tabs.findIndex((t) => t.classList.contains("is-active"))
-  );
+  const initialIndex = tabs.findIndex((t) => t.classList.contains("is-active"));
+  let currentIdx = initialIndex >= 0 ? initialIndex : 0;
 
   function setActiveByIndex(nextIdx, shouldFocus) {
     const idx = clampIndex(nextIdx);

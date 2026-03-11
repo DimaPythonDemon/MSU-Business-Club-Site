@@ -282,8 +282,8 @@
     if (!wraps.length) return;
     if (prefersReducedMotion) return;
 
-    const INTERVAL_MS = 4000;
-    const ROW_DELAY_MS = 160;
+    const INTERVAL_MS = 5000;
+    const ROW_DELAY_MS = 300;
 
     function parseSources(node) {
       return String(node.dataset.cycleSources || "")
@@ -389,7 +389,7 @@
         other.style.transition = "";
 
         state.busy = false;
-      }, 260);
+      }, 500);
     }
 
     // init states
