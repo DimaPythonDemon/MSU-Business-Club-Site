@@ -1,11 +1,11 @@
 {
   "channel": "bcmsu",
   "mode": "update",
-  "before": 1372,
-  "pages": 4,
-  "processed_posts": 25,
-  "inserted_posts": 0,
-  "inserted_events": 0,
+  "before": 1357,
+  "pages": 9,
+  "processed_posts": 59,
+  "upserted_posts": 59,
+  "upserted_events": 44,
   "known_streak": 25,
-  "updated_at": "2026-02-15T18:59:01.883982+03:00"
+  "updated_at": "2026-03-13T20:33:01.385202+03:00"
 }

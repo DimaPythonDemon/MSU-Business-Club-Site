@@ -1,10 +1,11 @@
-# Бизнес-клуб МГУ — миграция на Next.js
+# Бизнес-клуб МГУ - миграция на Next.js
 
 ## Что осталось неизменным
 
 - Весь визуал и разметка
 - Общие стили и скрипты
-- Интеграция архива мероприятий из файла: `public/assets/data/events.json`
+- Архив мероприятий из `public/assets/data/events.json`
+- Автолента анонсов на главной из `public/assets/data/home-announcements.json`
 
 ## Запуск
 
@@ -13,12 +14,24 @@ npm install
 npm run dev
 ```
 
-- `http://localhost:3000/`
+Открыть: `http://localhost:3000/`
 
-## Обновление архива мероприятий
+## Telegram-парсер
 
-Пример обновления JSON:
+Установить Python-зависимости:
 
 ```bash
-python tools/parser.py --channel bcmsu --max-posts 120 --out public/assets/data/events.json
+pip install -r requirements.txt
+```
+
+Обновить SQLite и сразу собрать публичные JSON:
+
+```bash
+python tools/parser.py --channel bcmsu --db tools/tg_events.sqlite --export public/assets/data/events.json --home-export public/assets/data/home-announcements.json
+```
+
+Собрать только экспорты из уже существующей SQLite-базы, без сети:
+
+```bash
+python tools/parser.py --channel bcmsu --db tools/tg_events.sqlite --export public/assets/data/events.json --home-export public/assets/data/home-announcements.json --export-only
 ```

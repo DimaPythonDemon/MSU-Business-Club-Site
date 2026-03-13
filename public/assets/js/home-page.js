@@ -9,6 +9,146 @@
     return Math.max(a, Math.min(b, n));
   }
 
+  function initHomeAnnouncements() {
+    const shell = document.getElementById("home-announcements-shell");
+    const list = document.getElementById("home-announcements-list");
+    if (!shell || !list) return;
+
+    const meta = document.getElementById("home-announcements-meta");
+    const DATA_URL = "assets/data/home-announcements.json";
+    const ruDateTime = new Intl.DateTimeFormat("ru-RU", {
+      day: "2-digit",
+      month: "long",
+      hour: "2-digit",
+      minute: "2-digit"
+    });
+    const ruDate = new Intl.DateTimeFormat("ru-RU", {
+      day: "2-digit",
+      month: "long"
+    });
+
+    function safeText(value) {
+      return String(value || "").trim();
+    }
+
+    function parseIso(value) {
+      if (!value) return null;
+      const parsed = new Date(value);
+      return Number.isFinite(parsed.getTime()) ? parsed : null;
+    }
+
+    function formatStart(value) {
+      const date = parseIso(value);
+      if (!date) return "Дата уточняется";
+
+      const hasTime = date.getHours() !== 0 || date.getMinutes() !== 0;
+      return hasTime ? ruDateTime.format(date) : ruDate.format(date);
+    }
+
+    function renderCard(item, index) {
+      const card = document.createElement("article");
+      card.className = "event-card event-card--live neon-panel lift-on-hover";
+      card.setAttribute("data-animate", index % 2 === 0 ? "fade-up" : "scale-in");
+
+      const media = document.createElement("img");
+      media.className = "event-card-live-media";
+      media.loading = "lazy";
+      media.src = safeText(item.cover_image) || "assets/img/events.jpg";
+      media.alt = safeText(item.title) || "Анонс мероприятия";
+
+      const body = document.createElement("div");
+      body.className = "event-card-live-body";
+
+      const topline = document.createElement("div");
+      topline.className = "event-card-live-topline";
+
+      const tag = document.createElement("span");
+      tag.className = "event-card-live-tag";
+      tag.textContent = "Telegram";
+
+      const date = document.createElement("span");
+      date.className = "event-card-live-date";
+      date.textContent = formatStart(item.start_at);
+
+      topline.appendChild(tag);
+      topline.appendChild(date);
+
+      const title = document.createElement("h3");
+      title.className = "event-card-live-title";
+      title.textContent = safeText(item.title) || "Анонс";
+
+      const metaLine = document.createElement("p");
+      metaLine.className = "event-card-live-meta-line";
+      metaLine.textContent = safeText(item.location) || "Место уточняется";
+
+      const actions = document.createElement("div");
+      actions.className = "event-card-live-actions";
+
+      if (item.registration_url) {
+        const reg = document.createElement("a");
+        reg.className = "event-card-live-link";
+        reg.href = item.registration_url;
+        reg.target = "_blank";
+        reg.rel = "noopener noreferrer";
+        reg.textContent = "Регистрация";
+        actions.appendChild(reg);
+      }
+
+      if (item.source_post_url) {
+        const post = document.createElement("a");
+        post.className = "event-card-live-link";
+        post.href = item.source_post_url;
+        post.target = "_blank";
+        post.rel = "noopener noreferrer";
+        post.textContent = "Пост в Telegram";
+        actions.appendChild(post);
+      }
+
+      body.appendChild(topline);
+      body.appendChild(title);
+      body.appendChild(metaLine);
+      body.appendChild(actions);
+
+      card.appendChild(media);
+      card.appendChild(body);
+      return card;
+    }
+
+    async function loadAnnouncements() {
+      try {
+        const response = await fetch(DATA_URL, { cache: "no-store" });
+        if (!response.ok) throw new Error("HTTP " + response.status);
+
+        const payload = await response.json();
+        const items = Array.isArray(payload.items) ? payload.items : [];
+
+        if (!items.length) {
+          shell.hidden = true;
+          return;
+        }
+
+        list.innerHTML = "";
+        items.forEach(function (item, index) {
+          list.appendChild(renderCard(item, index));
+        });
+
+        if (meta) {
+          meta.textContent = "Свежие анонсы из Telegram: " + items.length + " шт.";
+        }
+
+        shell.hidden = false;
+
+        if (window.BCScrollAnimations && typeof window.BCScrollAnimations.refresh === "function") {
+          window.BCScrollAnimations.refresh(shell);
+        }
+      } catch (_error) {
+        shell.hidden = true;
+      }
+    }
+
+    loadAnnouncements();
+  }
+
   /* ==========================
      Q&A (tabs + accordion)
      ========================== */
@@ -446,6 +586,7 @@
     });
   }
 
+  initHomeAnnouncements();
   initFaq();
   initAboutMediaCycle();
 })();
