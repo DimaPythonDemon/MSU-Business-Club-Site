@@ -3,6 +3,8 @@
 
   const CONFIG = {
     teamMarqueeSpeedPxPerSec: 28, // скорость автопрокрутки карточек команды (px/sec)
+    partnerMarqueeSpeedPxPerSec: 24,
+    reducedMotionMarqueeFactor: 0.38,
     teamMarqueePauseOnHover: true,
     hideGoogleTranslateBanner: true
   };
@@ -91,7 +93,8 @@
 
   (function initTeamMarquee() {
     const marquee = document.getElementById("team-marquee");
-    if (!marquee) return;
+    const track = document.getElementById("team-track");
+    if (!marquee || !track) return;
 
     const prefersReducedMotion =
       window.matchMedia &&
@@ -100,24 +103,69 @@
     // уберёте false, если понадобится фича с отключенным движением
     if (prefersReducedMotion && false) return;
 
+    const originalCards = Array.from(track.children).filter(function (node) {
+      return !node.hasAttribute("data-marquee-clone");
+    });
+
     let isPaused = false;
     let rafId = 0;
     let lastTs = 0;
+    let originalWidth = 0;
+    let resetAt = 0;
+    let resumeTimer = 0;
 
-    const speed = Math.max(0, Number(CONFIG.teamMarqueeSpeedPxPerSec) || 0);
+    const baseSpeed = Math.max(0, Number(CONFIG.teamMarqueeSpeedPxPerSec) || 0);
+    const speed = prefersReducedMotion
+      ? baseSpeed * Math.max(0.1, Number(CONFIG.reducedMotionMarqueeFactor) || 0.38)
+      : baseSpeed;
     const pxPerMs = speed / 1000;
+
+    function appendCloneBatch() {
+      originalCards.forEach(function (node) {
+        const clone = node.cloneNode(true);
+        clone.setAttribute("aria-hidden", "true");
+        clone.setAttribute("data-marquee-clone", "true");
+        clone.querySelectorAll("[id]").forEach(function (child) {
+          child.removeAttribute("id");
+        });
+        track.appendChild(clone);
+      });
+    }
+
+    function prepareTrack() {
+      if (!track.dataset.marqueePrepared) {
+        originalWidth = track.scrollWidth;
+        if (!originalWidth) return;
+
+        appendCloneBatch();
+        let guard = 0;
+        while (track.scrollWidth < marquee.clientWidth + originalWidth && guard < 4) {
+          appendCloneBatch();
+          guard += 1;
+        }
+
+        track.dataset.marqueePrepared = "true";
+      }
+
+      if (!originalWidth) {
+        originalWidth = track.scrollWidth;
+      }
+
+      resetAt = originalWidth;
+      if (resetAt > 0 && marquee.scrollLeft >= resetAt) {
+        marquee.scrollLeft = marquee.scrollLeft % resetAt;
+      }
+    }
 
     function step(ts) {
       if (!lastTs) lastTs = ts;
       const dt = ts - lastTs;
       lastTs = ts;
 
-      if (!isPaused && pxPerMs > 0) {
+      if (!isPaused && pxPerMs > 0 && resetAt > 1) {
         marquee.scrollLeft += dt * pxPerMs;
-
-        const maxScroll = marquee.scrollWidth - marquee.clientWidth - 1;
-        if (maxScroll > 0 && marquee.scrollLeft >= maxScroll) {
-          marquee.scrollLeft = 0;
+        if (marquee.scrollLeft >= resetAt) {
+          marquee.scrollLeft -= resetAt;
         }
       }
 
@@ -129,6 +177,11 @@
     }
     function resume() {
       isPaused = false;
+    }
+
+    function scheduleResume(delayMs) {
+      window.clearTimeout(resumeTimer);
+      resumeTimer = window.setTimeout(resume, delayMs);
     }
 
     if (CONFIG.teamMarqueePauseOnHover) {
@@ -143,10 +196,18 @@
       "pointerdown",
       function () {
         pause();
-        window.setTimeout(resume, 1200);
+        scheduleResume(prefersReducedMotion ? 900 : 1400);
       },
       { passive: true }
     );
+
+    prepareTrack();
+    if (resetAt <= 1) return;
+
+    window.addEventListener("resize", prepareTrack);
+    if (document.fonts && document.fonts.ready) {
+      document.fonts.ready.then(prepareTrack).catch(function () {});
+    }
 
     rafId = window.requestAnimationFrame(step);
 
@@ -155,6 +216,135 @@
       if (document.hidden) {
         window.cancelAnimationFrame(rafId);
       } else {
+        prepareTrack();
+        lastTs = 0;
+        rafId = window.requestAnimationFrame(step);
+      }
+    });
+  })();
+
+  (function initPartnersMarquee() {
+    const marquee = document.getElementById("partners-marquee");
+    const track = document.getElementById("partners-track");
+    if (!marquee || !track) return;
+
+    const prefersReducedMotion =
+      window.matchMedia &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    const originalCards = Array.from(track.children).filter(function (node) {
+      return !node.hasAttribute("data-marquee-clone");
+    });
+
+    let isPaused = false;
+    let rafId = 0;
+    let lastTs = 0;
+    let originalWidth = 0;
+    let resetAt = 0;
+    let resumeTimer = 0;
+
+    const baseSpeed = Math.max(0, Number(CONFIG.partnerMarqueeSpeedPxPerSec) || 0);
+    const speed = prefersReducedMotion
+      ? baseSpeed * Math.max(0.1, Number(CONFIG.reducedMotionMarqueeFactor) || 0.38)
+      : baseSpeed;
+    const pxPerMs = speed / 1000;
+
+    function appendCloneBatch() {
+      originalCards.forEach(function (node) {
+        const clone = node.cloneNode(true);
+        clone.setAttribute("aria-hidden", "true");
+        clone.setAttribute("data-marquee-clone", "true");
+        clone.querySelectorAll("[id]").forEach(function (child) {
+          child.removeAttribute("id");
+        });
+        track.appendChild(clone);
+      });
+    }
+
+    function prepareTrack() {
+      if (!track.dataset.marqueePrepared) {
+        originalWidth = track.scrollWidth;
+        if (!originalWidth) return;
+
+        appendCloneBatch();
+        let guard = 0;
+        while (track.scrollWidth < marquee.clientWidth + originalWidth && guard < 4) {
+          appendCloneBatch();
+          guard += 1;
+        }
+
+        track.dataset.marqueePrepared = "true";
+      }
+
+      if (!originalWidth) {
+        originalWidth = track.scrollWidth;
+      }
+
+      resetAt = originalWidth;
+      if (resetAt > 0 && marquee.scrollLeft >= resetAt) {
+        marquee.scrollLeft = marquee.scrollLeft % resetAt;
+      }
+    }
+
+    function step(ts) {
+      if (!lastTs) lastTs = ts;
+      const dt = ts - lastTs;
+      lastTs = ts;
+
+      if (!isPaused && pxPerMs > 0 && resetAt > 1) {
+        marquee.scrollLeft += dt * pxPerMs;
+        if (marquee.scrollLeft >= resetAt) {
+          marquee.scrollLeft -= resetAt;
+        }
+      }
+
+      rafId = window.requestAnimationFrame(step);
+    }
+
+    function pause() {
+      isPaused = true;
+    }
+    function resume() {
+      isPaused = false;
+    }
+
+    function scheduleResume(delayMs) {
+      window.clearTimeout(resumeTimer);
+      resumeTimer = window.setTimeout(resume, delayMs);
+    }
+
+    if (CONFIG.teamMarqueePauseOnHover) {
+      marquee.addEventListener("mouseenter", pause);
+      marquee.addEventListener("mouseleave", resume);
+    }
+
+    marquee.addEventListener("focusin", pause);
+    marquee.addEventListener("focusout", resume);
+
+    marquee.addEventListener(
+      "pointerdown",
+      function () {
+        pause();
+        scheduleResume(prefersReducedMotion ? 900 : 1400);
+      },
+      { passive: true }
+    );
+
+    prepareTrack();
+    if (resetAt <= 1) return;
+
+    window.addEventListener("resize", prepareTrack);
+    if (document.fonts && document.fonts.ready) {
+      document.fonts.ready.then(prepareTrack).catch(function () {});
+    }
+
+    rafId = window.requestAnimationFrame(step);
+
+    document.addEventListener("visibilitychange", function () {
+      if (document.hidden) {
+        window.cancelAnimationFrame(rafId);
+      } else {
+        prepareTrack();
         lastTs = 0;
         rafId = window.requestAnimationFrame(step);
       }

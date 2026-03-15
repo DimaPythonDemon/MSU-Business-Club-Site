@@ -1533,28 +1533,33 @@ select:focus {
   gap: 12px;
 }
 
-.team-scroll-wrap {
+.team-scroll-wrap,
+.partners-scroll-wrap {
   margin-top: 18px;
   padding: 10px;
 }
 
-.team-marquee {
+.team-marquee,
+.partners-marquee {
   overflow-x: auto;
   scrollbar-width: none;
-  scroll-snap-type: x mandatory;
+  scroll-snap-type: x proximity;
   border-radius: 14px;
   padding-bottom: 6px;
 }
 
-.team-marquee::-webkit-scrollbar {
+.team-marquee::-webkit-scrollbar,
+.partners-marquee::-webkit-scrollbar {
   display: none;
 }
 
-.team-track {
+.team-track,
+.partners-track {
   display: flex;
   gap: 12px;
   width: max-content;
   padding: 6px;
+  align-items: stretch;
 }
 
 .team-card {
@@ -1565,6 +1570,12 @@ select:focus {
   grid-template-columns: 56px 1fr;
   gap: 12px;
   align-items: center;
+  scroll-snap-align: start;
+}
+
+.partners-track .partner-card {
+  flex: 0 0 auto;
+  width: min(250px, 72vw);
   scroll-snap-align: start;
 }
 
@@ -1609,12 +1620,6 @@ select:focus {
   margin-top: 24px;
   display: grid;
   gap: 14px;
-}
-
-.partners-grid {
-  display: grid;
-  gap: 12px;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
 }
 
 .partner-card {
