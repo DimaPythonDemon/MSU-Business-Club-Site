@@ -9,7 +9,7 @@
     return Math.max(a, Math.min(b, n));
   }
 
-  function initHomeAnnouncements() {
+  function initHomeAnnouncementsLegacy() {
     const shell = document.getElementById("home-announcements-shell");
     const list = document.getElementById("home-announcements-list");
     if (!shell || !list) return;
@@ -637,6 +637,275 @@
       if (document.hidden) stop();
       else start();
     });
+  }
+
+  function initHomeAnnouncements() {
+    const section = document.getElementById("events");
+    if (!section) return;
+
+    const marqueeTrack = section.querySelector(".events-marquee-track");
+    const list = section.querySelector(".events-grid:not(.events-grid--live)");
+    if (!marqueeTrack || !list) return;
+
+    const shell = document.getElementById("home-announcements-shell");
+    const DATA_URL = "assets/data/events.json";
+    const HOME_LIMIT = 4;
+    const PAST_WINDOW_MS = 45 * 24 * 60 * 60 * 1000;
+    const MAX_HOME_DELTA_MS = 120 * 24 * 60 * 60 * 1000;
+    const ruDateTime = new Intl.DateTimeFormat("ru-RU", {
+      day: "2-digit",
+      month: "long",
+      hour: "2-digit",
+      minute: "2-digit"
+    });
+    const ruDate = new Intl.DateTimeFormat("ru-RU", {
+      day: "2-digit",
+      month: "long"
+    });
+
+    function safeText(value) {
+      return String(value || "").trim();
+    }
+
+    function parseIso(value) {
+      if (!value) return null;
+      const parsed = new Date(value);
+      return Number.isFinite(parsed.getTime()) ? parsed : null;
+    }
+
+    function canonicalUrl(value) {
+      const raw = safeText(value);
+      if (!raw) return "";
+
+      try {
+        const parsed = new URL(raw, window.location.href);
+        const path = parsed.pathname.replace(/\/+$/, "") || "/";
+        return (parsed.protocol + "//" + parsed.host.toLowerCase() + path + parsed.search).toLowerCase();
+      } catch (_error) {
+        return raw.toLowerCase();
+      }
+    }
+
+    function isTelegramInternalUrl(value) {
+      const raw = safeText(value).toLowerCase();
+      if (!raw) return true;
+      if (raw.startsWith("tg://") || raw.startsWith("?q=")) return true;
+
+      try {
+        const parsed = new URL(raw, window.location.href);
+        return parsed.hostname.endsWith("t.me") || parsed.hostname.endsWith("telegram.me");
+      } catch (_error) {
+        return true;
+      }
+    }
+
+    function isNonRegistrationUrl(value) {
+      const raw = safeText(value).toLowerCase();
+      if (!raw) return true;
+      if (isTelegramInternalUrl(raw)) return true;
+
+      return [
+        "vk.com/album",
+        "vk.ru/album",
+        "instagram.com/p/",
+        "instagram.com/reel/",
+        "youtube.com/watch",
+        "youtu.be/"
+      ].some(function (pattern) {
+        return raw.includes(pattern);
+      });
+    }
+
+    function formatStart(value) {
+      const date = parseIso(value);
+      if (!date) return "Дата уточняется";
+
+      const hasTime = date.getHours() !== 0 || date.getMinutes() !== 0;
+      return hasTime ? ruDateTime.format(date) : ruDate.format(date);
+    }
+
+    function renderMarquee(items) {
+      const titles = items
+        .map(function (item) {
+          return safeText(item.title);
+        })
+        .filter(Boolean);
+
+      if (!titles.length) return;
+
+      const cycles = Math.max(2, Math.ceil(10 / titles.length));
+      const fragment = document.createDocumentFragment();
+      marqueeTrack.innerHTML = "";
+
+      for (let round = 0; round < cycles; round += 1) {
+        titles.forEach(function (title) {
+          const item = document.createElement("span");
+          item.className = "marquee-item";
+          item.textContent = title;
+          fragment.appendChild(item);
+
+          const separator = document.createElement("span");
+          separator.className = "marquee-separator";
+          separator.setAttribute("aria-hidden", "true");
+          separator.textContent = "♦";
+          fragment.appendChild(separator);
+        });
+      }
+
+      marqueeTrack.appendChild(fragment);
+    }
+
+    function buildCardHref(item) {
+      return safeText(item.registration_url) || safeText(item.source_post_url) || "events.html";
+    }
+
+    function renderCard(item, index) {
+      const card = document.createElement("article");
+      card.className = "event-card event-card--home-auto neon-panel lift-on-hover";
+      card.setAttribute("data-animate", index % 2 === 0 ? "fade-up" : "scale-in");
+
+      const link = document.createElement("a");
+      link.className = "event-card-home-link";
+      link.href = buildCardHref(item);
+      if (/^https?:\/\//i.test(link.href)) {
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+      }
+
+      const media = document.createElement("img");
+      media.className = "event-card-home-media";
+      media.loading = "lazy";
+      media.src = safeText(item.cover_image) || "assets/img/events.jpg";
+      media.alt = safeText(item.title) || "Анонс мероприятия";
+
+      const body = document.createElement("div");
+      body.className = "event-card-home-body";
+
+      const date = document.createElement("p");
+      date.className = "event-card-home-date";
+      date.textContent = formatStart(item.start_at);
+
+      const title = document.createElement("h3");
+      title.className = "event-card-home-title";
+      title.textContent = safeText(item.title) || "РђРЅРѕРЅСЃ";
+
+      const meta = document.createElement("p");
+      meta.className = "event-card-home-meta";
+      meta.textContent = safeText(item.location) || "РњРµСЃС‚Рѕ СѓС‚РѕС‡РЅСЏРµС‚СЃСЏ";
+
+      body.appendChild(date);
+      body.appendChild(title);
+      body.appendChild(meta);
+      link.appendChild(media);
+      link.appendChild(body);
+      card.appendChild(link);
+      return card;
+    }
+
+    function isHomeCandidate(item, now) {
+      if (safeText(item.content_kind) !== "announcement") return false;
+
+      const start = parseIso(item.start_at);
+      if (!start || start.getTime() < now.getTime() - PAST_WINDOW_MS) return false;
+
+      const registrationUrl = safeText(item.registration_url);
+      if (!registrationUrl || isNonRegistrationUrl(registrationUrl)) return false;
+
+      const published = parseIso(item.published_at);
+      if (published) {
+        const delta = start.getTime() - published.getTime();
+        if (delta < -2 * 24 * 60 * 60 * 1000) return false;
+        if (delta > MAX_HOME_DELTA_MS) return false;
+      }
+
+      return true;
+    }
+
+    function homeSignature(item) {
+      return [
+        safeText(item.title).toLowerCase(),
+        safeText(item.start_at),
+        canonicalUrl(item.registration_url)
+      ].join("|");
+    }
+
+    function compareHomeItems(a, b, now) {
+      const aStart = parseIso(a.start_at);
+      const bStart = parseIso(b.start_at);
+      const aPublished = parseIso(a.published_at);
+      const bPublished = parseIso(b.published_at);
+
+      function rank(start, published) {
+        if (!start) return [2, Number.POSITIVE_INFINITY, 0];
+        if (start.getTime() >= now.getTime()) {
+          return [0, start.getTime(), -1 * (published ? published.getTime() : 0)];
+        }
+        return [1, -1 * start.getTime(), -1 * (published ? published.getTime() : 0)];
+      }
+
+      const aRank = rank(aStart, aPublished);
+      const bRank = rank(bStart, bPublished);
+
+      for (let index = 0; index < aRank.length; index += 1) {
+        if (aRank[index] !== bRank[index]) return aRank[index] - bRank[index];
+      }
+      return 0;
+    }
+
+    function pickHomeItems(events) {
+      const now = new Date();
+      const candidates = Array.isArray(events)
+        ? events.filter(function (item) {
+            return isHomeCandidate(item, now);
+          })
+        : [];
+      const unique = [];
+      const seen = new Set();
+
+      candidates.forEach(function (item) {
+        const signature = homeSignature(item);
+        if (seen.has(signature)) return;
+        seen.add(signature);
+        unique.push(item);
+      });
+
+      unique.sort(function (a, b) {
+        return compareHomeItems(a, b, now);
+      });
+
+      return unique.slice(0, HOME_LIMIT);
+    }
+
+    async function loadAnnouncements() {
+      try {
+        const response = await fetch(DATA_URL, { cache: "no-store" });
+        if (!response.ok) throw new Error("HTTP " + response.status);
+
+        const payload = await response.json();
+        const items = pickHomeItems(payload.events);
+
+        if (!items.length) {
+          if (shell) shell.hidden = true;
+          return;
+        }
+
+        list.innerHTML = "";
+        items.forEach(function (item, index) {
+          list.appendChild(renderCard(item, index));
+        });
+        renderMarquee(items);
+
+        if (shell) shell.hidden = true;
+
+        if (window.BCScrollAnimations && typeof window.BCScrollAnimations.refresh === "function") {
+          window.BCScrollAnimations.refresh(section);
+        }
+      } catch (_error) {
+        if (shell) shell.hidden = true;
+      }
+    }
+
+    loadAnnouncements();
   }
 
   initHomeAnnouncements();

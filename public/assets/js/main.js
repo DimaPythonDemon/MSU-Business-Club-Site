@@ -20,6 +20,75 @@
     yearNode.textContent = String(new Date().getFullYear());
   }
 
+  function initMobileZoomLock() {
+    const ua = window.navigator.userAgent || "";
+    const isAppleTouchDevice =
+      /iPad|iPhone|iPod/.test(ua) ||
+      (window.navigator.platform === "MacIntel" && window.navigator.maxTouchPoints > 1);
+    const isSafari =
+      /Safari/i.test(ua) &&
+      !/CriOS|FxiOS|EdgiOS|OPiOS|YaBrowser|DuckDuckGo/i.test(ua);
+
+    if (!isAppleTouchDevice || !isSafari) return;
+
+    const listenerOptions = { passive: false };
+    let lastTouchEndAt = 0;
+    let lastTouchX = 0;
+    let lastTouchY = 0;
+
+    function preventZoom(event) {
+      event.preventDefault();
+    }
+
+    document.addEventListener("gesturestart", preventZoom, listenerOptions);
+    document.addEventListener("gesturechange", preventZoom, listenerOptions);
+    document.addEventListener("gestureend", preventZoom, listenerOptions);
+
+    document.addEventListener(
+      "touchstart",
+      function (event) {
+        if (event.touches.length > 1) {
+          event.preventDefault();
+        }
+      },
+      listenerOptions
+    );
+
+    document.addEventListener(
+      "touchend",
+      function (event) {
+        if (event.touches.length !== 0 || event.changedTouches.length !== 1) return;
+
+        const touch = event.changedTouches[0];
+        const now = Date.now();
+        const delta = now - lastTouchEndAt;
+        const isRapidSecondTap = delta > 0 && delta < 350;
+        const isNearbyTap =
+          Math.abs(touch.clientX - lastTouchX) < 24 &&
+          Math.abs(touch.clientY - lastTouchY) < 24;
+
+        lastTouchEndAt = now;
+        lastTouchX = touch.clientX;
+        lastTouchY = touch.clientY;
+
+        if (!isRapidSecondTap || !isNearbyTap) return;
+
+        event.preventDefault();
+
+        const target = event.target.closest(
+          "a, button, summary, label, [role=\"button\"], [data-double-tap-click]"
+        );
+
+        if (target && typeof target.click === "function") {
+          target.click();
+        }
+      },
+      listenerOptions
+    );
+  }
+
+  initMobileZoomLock();
+
   function setActiveLinkByPath() {
     const currentFile = (window.location.pathname.split("/").pop() || "index.html").toLowerCase();
 
@@ -94,11 +163,118 @@
   function initCarousel(root) {
     if (!root || root.dataset.carouselReady === "true") return;
 
+    const carouselId = String(root.dataset.carousel || "");
+    const isTeamHomeCarousel = carouselId === "team-home";
     const viewport = root.querySelector("[data-carousel-viewport]");
     const track = root.querySelector("[data-carousel-track]");
     const prev = root.querySelector("[data-carousel-prev]");
     const next = root.querySelector("[data-carousel-next]");
     if (!viewport || !track) return;
+    let edgeTapTimestamps = [];
+    let teamEasterUnlocked = false;
+
+    function getMaxScroll() {
+      return Math.max(0, viewport.scrollWidth - viewport.clientWidth - 2);
+    }
+
+    function isAtEnd() {
+      return viewport.scrollLeft >= getMaxScroll();
+    }
+
+    function buildDeveloperCard() {
+      const card = document.createElement("article");
+      card.className = "team-card team-card--home team-card--developer-secret lift-on-hover";
+      card.setAttribute("data-easter-card", "developer");
+      card.style.setProperty("--team-accent", "#f5d36b");
+      card.style.setProperty("--team-accent-2", "#60a5fa");
+      card.style.setProperty("--team-accent-glow", "rgba(245, 211, 107, 0.24)");
+
+      const head = document.createElement("div");
+      head.className = "team-card-head";
+
+      const avatar = document.createElement("div");
+      avatar.className = "team-avatar";
+      avatar.setAttribute("aria-hidden", "true");
+
+      const initials = document.createElement("span");
+      initials.className = "team-avatar-initials";
+      initials.textContent = "DEV";
+      avatar.appendChild(initials);
+
+      const heading = document.createElement("div");
+      heading.className = "team-card-heading";
+
+      const name = document.createElement("h3");
+      name.className = "team-name";
+      name.textContent = "Разработчик сайта";
+
+      const role = document.createElement("p");
+      role.className = "team-role";
+      role.textContent = "Секретный участник";
+
+      heading.appendChild(name);
+      heading.appendChild(role);
+      head.appendChild(avatar);
+      head.appendChild(heading);
+
+      const excerpt = document.createElement("p");
+      excerpt.className = "team-excerpt";
+      excerpt.textContent = "Много часов интенсивной работы, бессонные ночи... Рад встречать здесь тех, кто нашёл мою пасхалку :)";
+
+      const meta = document.createElement("div");
+      meta.className = "team-meta-top";
+
+      const chipOne = document.createElement("span");
+      chipOne.className = "team-chip";
+      chipOne.textContent = "Факультет вычислительной математики и кибернетики";
+
+      const chipTwo = document.createElement("span");
+      chipTwo.className = "team-chip";
+      chipTwo.textContent = "1 курс";
+
+      meta.appendChild(chipOne);
+      meta.appendChild(chipTwo);
+
+      card.appendChild(head);
+      card.appendChild(excerpt);
+      card.appendChild(meta);
+      return card;
+    }
+
+    function unlockTeamEasterCard() {
+      if (!isTeamHomeCarousel || teamEasterUnlocked) return;
+      if (track.querySelector("[data-easter-card='developer']")) {
+        teamEasterUnlocked = true;
+        return;
+      }
+
+      teamEasterUnlocked = true;
+      track.appendChild(buildDeveloperCard());
+      root.dataset.easterUnlocked = "true";
+
+      requestAnimationFrame(function () {
+        updateState();
+        viewport.scrollTo({
+          left: viewport.scrollWidth,
+          behavior: "smooth"
+        });
+      });
+    }
+
+    function registerEdgeTap() {
+      if (!isTeamHomeCarousel || teamEasterUnlocked) return;
+
+      const now = Date.now();
+      edgeTapTimestamps = edgeTapTimestamps.filter(function (ts) {
+        return now - ts <= 5000;
+      });
+      edgeTapTimestamps.push(now);
+
+      if (edgeTapTimestamps.length >= 10) {
+        edgeTapTimestamps = [];
+        unlockTeamEasterCard();
+      }
+    }
 
     function getStep() {
       const firstCard = track.children[0];
@@ -109,13 +285,34 @@
     }
 
     function updateState() {
-      const maxScroll = Math.max(0, viewport.scrollWidth - viewport.clientWidth - 2);
+      const maxScroll = getMaxScroll();
       const left = viewport.scrollLeft;
-      if (prev) prev.disabled = left <= 4;
-      if (next) next.disabled = left >= maxScroll;
+      const atStart = left <= 4;
+      const atEnd = left >= maxScroll;
+
+      if (prev) prev.disabled = atStart;
+
+      if (next) {
+        if (isTeamHomeCarousel && !teamEasterUnlocked) {
+          next.disabled = false;
+          next.classList.toggle("is-inactive", atEnd);
+          next.setAttribute("aria-disabled", atEnd ? "true" : "false");
+        } else {
+          next.disabled = atEnd;
+          next.classList.remove("is-inactive");
+          next.removeAttribute("aria-disabled");
+        }
+      }
+
+      if (!atEnd) {
+        edgeTapTimestamps = [];
+      }
     }
 
     function scrollByCard(direction) {
+      if (direction > 0 && isAtEnd()) {
+        registerEdgeTap();
+      }
       viewport.scrollBy({ left: direction * getStep(), behavior: "smooth" });
     }
 
