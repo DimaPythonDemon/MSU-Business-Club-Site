@@ -470,21 +470,26 @@
      About: photo exposure cycling
      ========================== */
 
-  function initAboutMediaCycle() {
-    const wraps = Array.from(document.querySelectorAll(".media-cycle[data-cycle-sources]"));
+  async function initAboutMediaCycle() {
+    const wraps = Array.from(document.querySelectorAll(".media-cycle[data-cycle-folder]"));
     if (!wraps.length) return;
-    if (prefersReducedMotion) return;
 
     const INTERVAL_MS = 5000;
     const ROW_DELAY_MS = 300;
+    const MANIFEST_URL = "/api/about-media-manifest";
+    const FALLBACK_IMAGE = "assets/img/card-placeholder.svg";
+    let manifestGroups = {};
 
-    function parseSources(node) {
-      return String(node.dataset.cycleSources || "")
-        .split("|")
-        .map(function (s) {
-          return String(s || "").trim();
-        })
-        .filter(Boolean);
+    try {
+      const response = await fetch(MANIFEST_URL, { cache: "no-store" });
+      if (response.ok) {
+        const payload = await response.json();
+        if (payload && typeof payload.groups === "object" && payload.groups) {
+          manifestGroups = payload.groups;
+        }
+      }
+    } catch (_error) {
+      manifestGroups = {};
     }
 
     function getDir(node) {
@@ -492,29 +497,54 @@
       return d === "right" ? "right" : "left";
     }
 
-    function ensureImgs(node, sources) {
+    function getAlt(node) {
+      return String(node.dataset.cycleAlt || "").trim();
+    }
+
+    function getSources(node) {
+      const folder = String(node.dataset.cycleFolder || "").trim();
+      const sources = Array.isArray(manifestGroups[folder]) ? manifestGroups[folder] : [];
+      return sources
+        .map(function (src) {
+          return String(src || "").trim();
+        })
+        .filter(Boolean);
+    }
+
+    function ensureImgs(node, sources, altText) {
       let imgs = Array.from(node.querySelectorAll("img.media-cycle-img"));
 
-      if (imgs.length >= 2) return imgs.slice(0, 2);
+      if (imgs.length < 2) {
+        node.innerHTML = "";
+        const img1 = document.createElement("img");
+        img1.className = "media-cycle-img is-active";
+        img1.loading = "lazy";
 
-      node.innerHTML = "";
-      const img1 = document.createElement("img");
-      img1.className = "media-cycle-img is-active";
-      img1.alt = "";
-      img1.loading = "lazy";
-      img1.src = sources[0] || "";
+        const img2 = document.createElement("img");
+        img2.className = "media-cycle-img";
+        img2.loading = "lazy";
+        img2.alt = "";
+        img2.setAttribute("aria-hidden", "true");
 
-      const img2 = document.createElement("img");
-      img2.className = "media-cycle-img";
-      img2.alt = "";
-      img2.loading = "lazy";
-      img2.src = sources[1] || sources[0] || "";
+        node.appendChild(img1);
+        node.appendChild(img2);
+        imgs = [img1, img2];
+      }
 
-      node.appendChild(img1);
-      node.appendChild(img2);
+      const primarySrc = sources[0] || FALLBACK_IMAGE;
+      const secondarySrc = sources[1] || primarySrc;
 
-      imgs = [img1, img2];
-      return imgs;
+      imgs[0].src = primarySrc;
+      imgs[0].alt = altText;
+      imgs[0].classList.add("is-active");
+      imgs[0].removeAttribute("aria-hidden");
+
+      imgs[1].src = secondarySrc;
+      imgs[1].alt = "";
+      imgs[1].classList.remove("is-active");
+      imgs[1].setAttribute("aria-hidden", "true");
+
+      return imgs.slice(0, 2);
     }
 
     function swapOne(node) {
@@ -585,16 +615,11 @@
       }, 500);
     }
 
-    // init states
-    wraps.forEach(function (node) {
-      const sources = parseSources(node);
-      if (sources.length < 2) return;
+    const activeWraps = [];
 
-      const imgs = ensureImgs(node, sources);
-      imgs[0].src = sources[0];
-      imgs[0].classList.add("is-active");
-      imgs[1].classList.remove("is-active");
-      imgs[1].src = sources[1] || sources[0];
+    wraps.forEach(function (node) {
+      const sources = getSources(node);
+      const imgs = ensureImgs(node, sources, getAlt(node));
 
       node.__cycleState = {
         sources: sources,
@@ -603,13 +628,20 @@
         index: 0,
         busy: false
       };
+
+      node.classList.add("media-cycle-ready");
+
+      if (!prefersReducedMotion && sources.length > 1) {
+        activeWraps.push(node);
+      }
     });
 
-    // timers
+    if (!activeWraps.length) return;
+
     let timer = 0;
 
     function tick() {
-      wraps.forEach(function (node, idx) {
+      activeWraps.forEach(function (node, idx) {
         window.setTimeout(function () {
           swapOne(node);
         }, idx * ROW_DELAY_MS);
@@ -627,7 +659,6 @@
       timer = 0;
     }
 
-    // Start with delay so first exposure isn't immediate.
     window.setTimeout(function () {
       if (!document.hidden) tick();
       start();

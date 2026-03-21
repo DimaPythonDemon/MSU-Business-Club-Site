@@ -1560,22 +1560,29 @@ def run_update_mode(
     upserted_events = 0
     known_streak = 0
 
-    def do_checkpoint() -> None:
-        if checkpoint_path:
-            atomic_write_json(
-                checkpoint_path,
-                {
-                    "channel": channel,
-                    "mode": "update",
-                    "before": before,
-                    "pages": pages,
-                    "processed_posts": processed_posts,
-                    "upserted_posts": upserted_posts,
-                    "upserted_events": upserted_events,
-                    "known_streak": known_streak,
-                    "updated_at": now_iso(),
-                },
-            )
+    def write_checkpoint(status: str = "ok", **extra: Any) -> None:
+        if not checkpoint_path:
+            return
+
+        payload = {
+            "channel": channel,
+            "mode": "update",
+            "status": status,
+            "before": before,
+            "pages": pages,
+            "processed_posts": processed_posts,
+            "upserted_posts": upserted_posts,
+            "upserted_events": upserted_events,
+            "known_streak": known_streak,
+            "updated_at": now_iso(),
+        }
+        payload.update(extra)
+        atomic_write_json(checkpoint_path, payload)
+
+    def do_checkpoint(export: bool = True, status: str = "ok", **extra: Any) -> None:
+        write_checkpoint(status=status, **extra)
+        if not export:
+            return
         export_outputs(
             conn,
             channel,
@@ -1592,13 +1599,34 @@ def run_update_mode(
             html = fetch_feed_page(session, channel, before=before)
         except Exception as exc:
             logging.exception("Failed to fetch feed page (before=%s): %s", before, exc)
-            do_checkpoint()
+            if pages == 0 and processed_posts == 0:
+                logging.error("Update aborted before the first page was processed. Keeping previous exports unchanged.")
+                do_checkpoint(
+                    export=False,
+                    status="error",
+                    reason="fetch_failed_before_first_page",
+                    error=str(exc)[:300],
+                )
+            else:
+                do_checkpoint(
+                    status="partial",
+                    reason="fetch_failed_after_partial_update",
+                    error=str(exc)[:300],
+                )
             return
 
         posts = parse_posts_from_html(html, channel)
         if not posts:
-            logging.info("No posts found on page, stopping.")
-            do_checkpoint()
+            if before is None and pages == 0 and processed_posts == 0:
+                logging.error("No posts were parsed from the first feed page. Keeping previous exports unchanged.")
+                do_checkpoint(
+                    export=False,
+                    status="error",
+                    reason="no_posts_on_first_page",
+                )
+            else:
+                logging.info("No posts found on page, stopping.")
+                do_checkpoint()
             return
 
         pages += 1
